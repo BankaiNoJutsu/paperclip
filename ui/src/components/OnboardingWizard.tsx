@@ -20,7 +20,7 @@ import type {
   InstanceSettings,
 } from "@paperclipai/shared";
 import { AGENT_ROLES, AGENT_ROLE_LABELS, ADAPTER_AUTH_MISSING_CHECK_CODE } from "@paperclipai/shared";
-import { AdapterLoginPanel } from "./AgentConfigForm";
+import { AdapterLoginPanel, ModelDropdown } from "./AgentConfigForm";
 import {
   CONNECT_SOURCE_NAMES,
   OnboardingCardField,
@@ -84,10 +84,6 @@ import {
 } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { cn } from "../lib/utils";
-import {
-  extractModelName,
-  extractProviderIdWithFallback
-} from "../lib/model-utils";
 import { getUIAdapter } from "../adapters";
 import { listUIAdapters } from "../adapters";
 import { isVisualAdapterChoice } from "../adapters/metadata";
@@ -108,7 +104,7 @@ import { DEFAULT_CODEX_LOCAL_BYPASS_APPROVALS_AND_SANDBOX } from "@paperclipai/a
 import { DEFAULT_CURSOR_LOCAL_MODEL } from "@paperclipai/adapter-cursor-local";
 import { DEFAULT_GEMINI_LOCAL_MODEL } from "@paperclipai/adapter-gemini-local";
 import { DEFAULT_KIMI_LOCAL_MODEL } from "@paperclipai/adapter-kimi-local";
-import { DEFAULT_OPENCODE_LOCAL_MODEL, isValidOpenCodeModelId } from "@paperclipai/adapter-opencode-local";
+import { isValidOpenCodeModelId, resolvePreferredOpenCodeModel } from "@paperclipai/adapter-opencode-local";
 import {
   canGoBackFromOnboardingStep,
   canJumpToOnboardingStep,
@@ -568,7 +564,6 @@ function OnboardingWizardInner({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [modelOpen, setModelOpen] = useState(false);
-  const [modelSearch, setModelSearch] = useState("");
 
   // Step 1
   const [companyName, setCompanyName] = useState((saved?.companyName as string) ?? "");
@@ -1498,7 +1493,7 @@ function OnboardingWizardInner({
     setSourcePicked(false);
     if (next === "codex_local") return;
     if (next === "opencode_local") {
-      setModel(DEFAULT_OPENCODE_LOCAL_MODEL);
+      setModel(resolvePreferredOpenCodeModel(adapterModels ?? []));
       return;
     }
     if (next === "gemini_local") {
@@ -1510,7 +1505,42 @@ function OnboardingWizardInner({
       return;
     }
     setModel("");
-  }, [adapterRegistryLoaded, recommendedAdapters, moreAdapters, adapterType]);
+    // `adapterModels` is a dependency because the OpenCode seed reads the
+    // discovered catalog. Below the step gate the query has not run, so the
+    // first pass seeds the fallback and the second — once discovery settles —
+    // upgrades it to DeepSeek. Without it the DeepSeek preference would only
+    // ever apply to a snap that happened after the catalog arrived.
+  }, [adapterRegistryLoaded, recommendedAdapters, moreAdapters, adapterType, adapterModels]);
+
+  /**
+   * Seed OpenCode's model whenever it is the selected source and none is set.
+   *
+   * The tile press seeds it, but a press is not the only way OpenCode becomes
+   * the selection: a restored draft names it on arrival, and a customer who
+   * reloads this step never presses the tile at all. Both paths left `model`
+   * empty, so the picker rendered "Select model (required)" against a source the
+   * customer had already chosen — and since the picker is what supplies the
+   * required value, that was a dead end rather than a prompt.
+   *
+   * Keyed on the discovered catalog, so the seed is the DeepSeek preference
+   * where DeepSeek is reachable and the OpenAI default otherwise. It only ever
+   * fills an empty field: a model the customer picked is never overwritten when
+   * discovery settles underneath it.
+   */
+  useEffect(() => {
+    if (step !== 4 || adapterType !== "opencode_local") return;
+    if (model.trim()) return;
+    if (adapterModelsLoading || adapterModelsFetching) return;
+    if (!(adapterModels ?? []).length) return;
+    setModel(resolvePreferredOpenCodeModel(adapterModels ?? []));
+  }, [
+    step,
+    adapterType,
+    model,
+    adapterModels,
+    adapterModelsLoading,
+    adapterModelsFetching,
+  ]);
 
   const COMMAND_PLACEHOLDERS: Record<string, string> = {
     claude_local: "claude",
@@ -1567,7 +1597,6 @@ function OnboardingWizardInner({
     setConnectCredentialStored(false);
   }, [step]);
 
-  const selectedModel = (adapterModels ?? []).find((m) => m.id === model);
   const hasAnthropicApiKeyOverrideCheck =
     adapterEnvResult?.checks.some(
       (check) =>
@@ -1577,41 +1606,6 @@ function OnboardingWizardInner({
     adapterType === "claude_local" &&
     adapterEnvResult?.status === "fail" &&
     hasAnthropicApiKeyOverrideCheck;
-  const filteredModels = useMemo(() => {
-    const query = modelSearch.trim().toLowerCase();
-    return (adapterModels ?? []).filter((entry) => {
-      if (!query) return true;
-      const provider = extractProviderIdWithFallback(entry.id, "");
-      return (
-        entry.id.toLowerCase().includes(query) ||
-        entry.label.toLowerCase().includes(query) ||
-        provider.toLowerCase().includes(query)
-      );
-    });
-  }, [adapterModels, modelSearch]);
-  const groupedModels = useMemo(() => {
-    if (adapterType !== "opencode_local") {
-      return [
-        {
-          provider: "models",
-          entries: [...filteredModels].sort((a, b) => a.id.localeCompare(b.id))
-        }
-      ];
-    }
-    const groups = new Map<string, Array<{ id: string; label: string }>>();
-    for (const entry of filteredModels) {
-      const provider = extractProviderIdWithFallback(entry.id);
-      const bucket = groups.get(provider) ?? [];
-      bucket.push(entry);
-      groups.set(provider, bucket);
-    }
-    return Array.from(groups.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([provider, entries]) => ({
-        provider,
-        entries: [...entries].sort((a, b) => a.id.localeCompare(b.id))
-      }));
-  }, [filteredModels, adapterType]);
 
   function reset() {
     onboardingDraftStorage.clear();
@@ -1827,9 +1821,12 @@ function OnboardingWizardInner({
             ? model || DEFAULT_KIMI_LOCAL_MODEL
           : adapterType === "cursor"
             ? model || DEFAULT_CURSOR_LOCAL_MODEL
-            : adapterType === "opencode_local"
-              ? model || DEFAULT_OPENCODE_LOCAL_MODEL
-              : model,
+            // No OpenCode fallback here: the tile press and the adapter snap
+            // both seed it from the discovered catalog (see
+            // resolvePreferredOpenCodeModel), and the picker is `required`.
+            // A fallback in this builder would be a second, silent default
+            // that could disagree with the one the customer was shown.
+            : model,
       command,
       args,
       url,
@@ -2061,12 +2058,18 @@ function OnboardingWizardInner({
           return;
         }
         const discoveredModels = adapterModels ?? [];
-        if (!discoveredModels.some((entry) => entry.id === selectedModelId)) {
-          setError(
-            discoveredModels.length === 0
-              ? "No OpenCode models discovered. Run `opencode models` and authenticate providers."
-              : `Configured OpenCode model is unavailable: ${selectedModelId}`
-          );
+        // An empty catalog is not evidence the model is wrong — it means
+        // discovery could not enumerate anything (no `opencode auth login` on
+        // this host, or a DeepSeek-only key that `opencode models` does not
+        // list). A manually entered provider/model is the documented escape
+        // hatch, and the runtime probe is deliberately best-effort for exactly
+        // this reason, so only a *populated* catalog that omits the model is a
+        // real mismatch worth stopping on.
+        if (
+          discoveredModels.length > 0 &&
+          !discoveredModels.some((entry) => entry.id === selectedModelId)
+        ) {
+          setError(`Configured OpenCode model is unavailable: ${selectedModelId}`);
           return;
         }
       }
@@ -2691,7 +2694,11 @@ function OnboardingWizardInner({
                         autoConnectStartedRef.current = false;
                         setSourcePicked(true);
                         setAdapterType(id);
-                        if (id === "opencode_local") setModel(DEFAULT_OPENCODE_LOCAL_MODEL);
+                        // DeepSeek when the catalog proves it is reachable here;
+                        // otherwise the long-standing OpenAI default. Read from
+                        // the discovered models rather than hardcoded, so the
+                        // preselection is one this host can actually run.
+                        if (id === "opencode_local") setModel(resolvePreferredOpenCodeModel(adapterModels ?? []));
                         else if (id !== "codex_local") setModel("");
                         setConnectPhase("collapsing");
                       }}
@@ -2896,11 +2903,40 @@ function OnboardingWizardInner({
                   </motion.div>
 
                   {/* Conditional adapter fields */}
-                  {/* No model picker. Every adapter this step offers resolves
-                      its own default (see buildAdapterConfig), so the picker
-                      asked the customer to choose a model before they had any
-                      way to judge one — and the agent's model is changeable
-                      later, where its work gives the choice meaning. */}
+                  {/* Only OpenCode asks. Every other adapter this step offers
+                      resolves its own default (see buildAdapterConfig), so a
+                      picker there asked the customer to choose a model before
+                      they had any way to judge one — and the agent's model is
+                      changeable later, where its work gives the choice meaning.
+
+                      OpenCode is the exception because it is the one source with
+                      no single default: `model` is required, and which models
+                      exist depends on which providers this host has
+                      authenticated. Preselecting DeepSeek without showing the
+                      choice would hire a model the customer never saw. */}
+                  {adapterType === "opencode_local" && (
+                    <div className="space-y-2">
+                      <ModelDropdown
+                        models={adapterModels ?? []}
+                        value={model}
+                        onChange={setModel}
+                        open={modelOpen}
+                        onOpenChange={setModelOpen}
+                        allowDefault={false}
+                        required
+                        groupByProvider
+                        creatable
+                        emptyDetectHint="No model discovered. Enter a provider/model value manually."
+                      />
+                      {adapterModelsError && (
+                        <p className="text-xs text-destructive">
+                          {adapterModelsError instanceof Error
+                            ? adapterModelsError.message
+                            : "Failed to load OpenCode models."}
+                        </p>
+                      )}
+                    </div>
+                  )}
 
                   {/* Progress is shown above; failed checks remain actionable here. */}
                   {/* Not while the hire is in flight. The probe's result lands

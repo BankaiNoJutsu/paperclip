@@ -891,9 +891,17 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
     ? String(isCreate ? props.values.adapterSchemaValues?.provider ?? "codex"
       : eff("adapterConfig", "provider", config.provider === "acpx" && config.acpxAgent === "codex" ? "codex" : config.provider ?? "codex"))
     : undefined;
-  const modelProvider = adapterType === "opencode_local" && aiConnectionBindingSchema.safeParse(
+  // Both DeepSeek routes reach OpenCode through different accounts, so the
+  // bound connection — not the adapter — decides which catalog to offer. An
+  // OpenRouter connection lists OpenRouter's ids; a DeepSeek connection lists
+  // DeepSeek's own. Falling back to the generic catalog for a DeepSeek binding
+  // would offer models the customer's key cannot run.
+  const boundAiProvider = aiConnectionBindingSchema.safeParse(
     (overlay.runtime.runtimeConfig as Record<string, unknown> | undefined)?.aiConnection ?? runtimeConfig.aiConnection,
-  ).data?.provider === "openrouter" ? "openrouter" : runnerProvider;
+  ).data?.provider;
+  const modelProvider = adapterType === "opencode_local" && (boundAiProvider === "openrouter" || boundAiProvider === "deepseek")
+    ? boundAiProvider
+    : runnerProvider;
   // Fetch adapter models for the effective provider, including unsaved changes.
   const modelQueryKey = selectedCompanyId
     ? queryKeys.agents.adapterModels(selectedCompanyId, adapterType, currentDefaultEnvironmentId || null, modelProvider)

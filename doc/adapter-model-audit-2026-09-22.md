@@ -12,7 +12,7 @@ No agent defaults or saved model selections are migrated.
 | Grok Build | Add Grok 4.7, 4.6, and 4.5. Offer Extra High for 4.7/4.6. Save edited effort as `reasoningEffort`, which the runtime consumes. Keep `grok-build` as the sentinel that lets the CLI choose its default. |
 | Gemini CLI | Add Flash 3.8, 3.7, 3.6, 3.5, Flash Lite 3.5/3.1, and 3 Flash Preview. Remove the retired Gemini 2.0 choices. Keep Auto and the existing 3.1 Pro and 2.5 choices. |
 | Cursor | Add the current documented fallback IDs for Composer 2.5, Opus 5.5, Fable 5.1, Sonnet 5, GPT-5.6 Sol/Terra/Luna, Gemini 3.8 Flash, Muse Spark 1.3, and Grok 4.7/4.6/4.5. Runtime model discovery remains available. |
-| OpenCode | Refresh the static fallback used by remote environments with GPT-6 and GPT-5.6 families, current Claude models, Gemini 3.8 Flash, and Grok 4.7. |
+| OpenCode | Refresh the static fallback used by remote environments with GPT-6 and GPT-5.6 families, current Claude models, Gemini 3.8 Flash, and Grok 4.7. Add the DeepSeek entries: `openrouter/deepseek/deepseek-v4-flash-0731` through OpenRouter, and `deepseek/deepseek-chat` / `deepseek/deepseek-reasoner` through DeepSeek's own API. Onboarding preselects the OpenRouter id when the catalog offers it. |
 | Kimi Code | Add K3 256K. Relabel `kimi-for-coding` as K2.8 Preview, which replaced K2.7 under the same ID. Forward CLI effort for K2.8 Preview and both K3 variants. |
 
 ## Sources and verification
@@ -46,6 +46,11 @@ No agent defaults or saved model selections are migrated.
   documents all four current IDs, K2.8's in-place alias upgrade, and effort
   support. Kimi effort remains limited to the existing explicit CLI engine;
   the default ACP engine's effort mapping is outside this catalog update.
+- [DeepSeek's API reference](https://api-docs.deepseek.com/) supplies the direct
+  model ids and the OpenAI-compatible base URL used for both key validation and
+  the OpenCode provider block. DeepSeek's public catalog was read from
+  [models.dev](https://models.dev/api.json), which is the registry OpenCode
+  itself resolves `deepseek/*` against, rather than invented here.
 
 ## Other adapters and restricted models
 
@@ -53,6 +58,19 @@ OpenCode discovers local models, but remote environment routes use its static
 fallback catalog. All twelve added provider-qualified IDs were also present in
 the installed OpenCode registry. [OpenCode model configuration](https://opencode.ai/docs/models/)
 documents its `provider/model` format and provider registry.
+
+DeepSeek reaches OpenCode two ways. The OpenRouter route is the id Paperclip
+already shipped for the Paperclip Runner, so the local OpenCode lane now names
+the same constant instead of a second literal. The direct route is a first-class
+`deepseek` AI connection: `DEEPSEEK_API_KEY`, validated against
+`https://api.deepseek.com/v1/models`, and written into OpenCode's
+`OPENCODE_CONFIG_CONTENT` under the `deepseek` provider — the same mechanism the
+OpenRouter connection uses. The two are kept apart by the model's provider
+segment, so selecting one never bills the other. Onboarding preselects DeepSeek
+only when the discovered catalog proves the provider is reachable on that host;
+otherwise it falls back to the existing OpenAI default. A manually entered
+provider/model is accepted whenever discovery returns nothing, which is the case
+for a DeepSeek-only key that `opencode models` does not enumerate.
 
 Pi already discovers models from its runtime or provider registry.
 Hermes and OpenClaw accept provider configuration without a curated model list.

@@ -44,6 +44,45 @@ export const SANDBOX_INSTALL_COMMAND =
 
 export const DEFAULT_OPENCODE_LOCAL_MODEL = "openai/gpt-5.2-codex";
 
+/**
+ * The DeepSeek model Paperclip prefers when a catalog offers a choice.
+ *
+ * Reached through OpenRouter, so it carries the `openrouter/` prefix that
+ * OpenCode uses as the provider segment. Paperclip already ships this id as the
+ * Paperclip Runner default, in eval pricing, and in the qualified ACPX profiles;
+ * naming it here gives the local OpenCode lane the same default instead of a
+ * second, drifting literal.
+ */
+export const PREFERRED_OPENCODE_MODEL = "openrouter/deepseek/deepseek-v4-flash-0731";
+
+/**
+ * DeepSeek served directly by DeepSeek's own OpenAI-compatible API.
+ *
+ * Distinct from {@link PREFERRED_OPENCODE_MODEL}, which reaches the same family
+ * through OpenRouter. The `deepseek` provider segment is a real models.dev
+ * provider, so OpenCode resolves these ids from its own catalog.
+ */
+export const DEEPSEEK_OPENCODE_MODELS = [
+  { id: "deepseek/deepseek-chat", label: "DeepSeek Chat" },
+  { id: "deepseek/deepseek-reasoner", label: "DeepSeek Reasoner" },
+] as const;
+
+/**
+ * Pick the model to preselect for a fresh OpenCode agent.
+ *
+ * DeepSeek when the catalog actually offers it — a discovered model is the only
+ * evidence that the provider is authenticated on this host, so preferring a
+ * hardcoded id over the catalog would preselect a model that cannot run. Falls
+ * back to {@link DEFAULT_OPENCODE_LOCAL_MODEL} when it is absent.
+ */
+export function resolvePreferredOpenCodeModel(
+  models: ReadonlyArray<{ id: string }>,
+): string {
+  return models.some((model) => model.id === PREFERRED_OPENCODE_MODEL)
+    ? PREFERRED_OPENCODE_MODEL
+    : DEFAULT_OPENCODE_LOCAL_MODEL;
+}
+
 export function isValidOpenCodeModelId(value: unknown): value is string {
   if (typeof value !== "string") return false;
   const trimmed = value.trim();
@@ -52,7 +91,9 @@ export function isValidOpenCodeModelId(value: unknown): value is string {
 }
 
 export const models: Array<{ id: string; label: string }> = [
+  { id: PREFERRED_OPENCODE_MODEL, label: "OpenRouter · DeepSeek V4 Flash 0731" },
   { id: DEFAULT_OPENCODE_LOCAL_MODEL, label: DEFAULT_OPENCODE_LOCAL_MODEL },
+  ...DEEPSEEK_OPENCODE_MODELS.map((model) => ({ id: model.id, label: model.label })),
   { id: "openai/gpt-6-astra", label: "openai/gpt-6-astra" },
   { id: "openai/gpt-6-sol", label: "openai/gpt-6-sol" },
   { id: "openai/gpt-6-luna", label: "openai/gpt-6-luna" },
@@ -106,6 +147,11 @@ Notes:
 - OpenCode supports multiple providers and models. Use \
   \`opencode models\` to list available options in provider/model format.
 - Paperclip requires an explicit \`model\` value for \`opencode_local\` agents.
+- DeepSeek is reachable two ways: \`openrouter/deepseek/deepseek-v4-flash-0731\` \
+  through an OpenRouter connection, or \`deepseek/deepseek-chat\` and \
+  \`deepseek/deepseek-reasoner\` through a DeepSeek connection (DEEPSEEK_API_KEY). \
+  Paperclip preselects the OpenRouter id when the catalog offers it and accepts a \
+  manually entered provider/model when discovery is unavailable.
 - Runs are executed with: opencode run --format json ...
 - Sessions are resumed with --session when stored session cwd matches current cwd.
 - The adapter sets OPENCODE_DISABLE_PROJECT_CONFIG=true to prevent OpenCode from \

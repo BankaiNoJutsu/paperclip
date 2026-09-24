@@ -463,6 +463,13 @@ describe("managed AI connections", () => {
     expect(isAiConnectionCompatible(binding, "paperclip_runner", "same-model", "acpx", "claude")).toBe(true);
     expect(isAiConnectionCompatible(binding, "paperclip_runner", "same-model", "acpx", "codex")).toBe(false);
     expect(isAiConnectionCompatible({ provider: "openrouter", method: "api_key" }, "opencode_local", "anthropic/model")).toBe(false);
+    // DeepSeek and OpenRouter share the OpenCode adapter, so the model's
+    // provider segment is the only thing that says whose account is billed.
+    expect(isAiConnectionCompatible({ provider: "deepseek", method: "api_key" }, "opencode_local", "deepseek/deepseek-chat")).toBe(true);
+    expect(isAiConnectionCompatible({ provider: "deepseek", method: "api_key" }, "opencode_local", "openrouter/deepseek/deepseek-v4-flash-0731")).toBe(false);
+    expect(isAiConnectionCompatible({ provider: "deepseek", method: "api_key" }, "opencode_local", undefined)).toBe(false);
+    expect(isAiConnectionCompatible({ provider: "openrouter", method: "api_key" }, "opencode_local", "deepseek/deepseek-chat")).toBe(false);
+    expect(isAiConnectionCompatible({ provider: "deepseek", method: "api_key" }, "claude_local", "deepseek/deepseek-chat")).toBe(false);
   });
   it("does not let a forged delegation bypass human access or accept an expired subscription attempt", async () => {
     const selected = await service.select({ ...input, userId: "alice" });

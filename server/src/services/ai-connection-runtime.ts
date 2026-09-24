@@ -29,6 +29,7 @@ export const AI_AUTH_ENV_KEYS = [
   "OPENAI_API_KEY",
   "CODEX_API_KEY",
   "OPENROUTER_API_KEY",
+  "DEEPSEEK_API_KEY",
   "XAI_API_KEY",
   "GROK_API_KEY",
   "CODEX_HOME",
@@ -287,9 +288,15 @@ export async function prepareManagedAiRuntime(
         mode: 0o600,
       });
     }
-    if (input.binding.provider === "openrouter") {
+    if (input.binding.provider === "openrouter" || input.binding.provider === "deepseek") {
+      // Both are OpenCode providers reached through an API key, so the key has
+      // to be written where OpenCode will look for it. OpenCode resolves a
+      // provider block from OPENCODE_CONFIG_CONTENT, and `deepseek` is a real
+      // models.dev provider whose catalog the model ids must match.
       env.OPENCODE_CONFIG_CONTENT = JSON.stringify({
-        provider: { openrouter: { options: { apiKey: value } } },
+        provider: {
+          [input.binding.provider]: { options: { apiKey: value } },
+        },
       });
       env.OPENCODE_DISABLE_PROJECT_CONFIG = "true";
     }

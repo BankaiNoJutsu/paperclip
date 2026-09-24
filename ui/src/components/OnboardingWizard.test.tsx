@@ -250,6 +250,7 @@ import { ADAPTER_AUTH_MISSING_CHECK_CODE, getEnvironmentCapabilities } from "@pa
 import { CLAUDE_OAUTH_TOKEN_ENV_KEY } from "./environment-variables-editor/model";
 import { ONBOARDING_STORAGE_KEY, OnboardingWizard } from "./OnboardingWizard";
 import { CONNECTED_HOLD_MS } from "./onboarding/onboarding-motion";
+import { TooltipProvider } from "./ui/tooltip";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
@@ -1999,7 +2000,11 @@ describe("OnboardingWizard restore-gate (stale localStorage across accounts)", (
       await act(async () => {
         root.render(
           <QueryClientProvider client={queryClient}>
-            <OnboardingWizard />
+            {/* The OpenCode model picker renders a Tooltip, so an OpenCode
+                draft needs the provider the real app root supplies. */}
+            <TooltipProvider>
+              <OnboardingWizard />
+            </TooltipProvider>
           </QueryClientProvider>,
         );
       });

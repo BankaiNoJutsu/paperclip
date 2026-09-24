@@ -31,6 +31,7 @@ export const AI_PROVIDERS = [
   "openai",
   "openrouter",
   "xai",
+  "deepseek",
 ] as const;
 export const aiProviderSchema = z.enum(AI_PROVIDERS);
 export const aiAuthMethodSchema = z.enum(["subscription", "api_key"]);
@@ -107,6 +108,12 @@ export const AI_CONNECTION_CAPABILITIES: Record<
       api_key: { adapters: ["grok_local"], envKey: "XAI_API_KEY" },
     },
   },
+  deepseek: {
+    name: "DeepSeek",
+    methods: {
+      api_key: { adapters: ["opencode_local"], envKey: "DEEPSEEK_API_KEY" },
+    },
+  },
 };
 export function isAiConnectionCompatible(
   requirement: AiConnectionMetadata | AiConnectionBinding,
@@ -132,7 +139,12 @@ export function isAiConnectionCompatible(
   return (
     candidates.some((method) => method?.adapters.includes(adapterType)) &&
     (requirement.provider !== "openrouter" ||
-      (typeof model === "string" && model.startsWith("openrouter/")))
+      (typeof model === "string" && model.startsWith("openrouter/"))) &&
+    // DeepSeek and OpenRouter are both OpenCode providers, so the adapter alone
+    // cannot tell them apart. The model's provider segment is the only evidence
+    // of which account will actually be billed, so it must match.
+    (requirement.provider !== "deepseek" ||
+      (typeof model === "string" && model.startsWith("deepseek/")))
   );
 }
 export type AiConnectionUnavailableReason =

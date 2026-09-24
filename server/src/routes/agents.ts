@@ -221,7 +221,7 @@ import type { AdapterAuthSessionOwnerResponse } from "@paperclipai/shared";
 import { DEFAULT_CURSOR_LOCAL_MODEL } from "@paperclipai/adapter-cursor-local";
 import { DEFAULT_GEMINI_LOCAL_MODEL } from "@paperclipai/adapter-gemini-local";
 import { DEFAULT_KIMI_LOCAL_MODEL } from "@paperclipai/adapter-kimi-local";
-import { DEFAULT_OPENCODE_LOCAL_MODEL } from "@paperclipai/adapter-opencode-local";
+import { DEEPSEEK_OPENCODE_MODELS, DEFAULT_OPENCODE_LOCAL_MODEL } from "@paperclipai/adapter-opencode-local";
 import { requireOpenCodeModelId } from "@paperclipai/adapter-opencode-local/server";
 import {
   loadDefaultAgentInstructionsBundle,
@@ -3233,6 +3233,13 @@ export function agentRoutes(
       res.json(await listOpenRouterModels(refresh));
       return;
     }
+    if (type === "opencode_local" && provider === "deepseek") {
+      // DeepSeek publishes no public model-list endpoint, and its API surface is
+      // a small, stable set of ids. Serve the curated list so the picker does
+      // not depend on `opencode models` having run with a DeepSeek key present.
+      res.json(DEEPSEEK_OPENCODE_MODELS.map((model) => ({ ...model })));
+      return;
+    }
     if (type === "paperclip_runner" && provider && !isPaperclipRunnerProvider(provider)) {
       throw unprocessable("Unknown Paperclip Runner provider");
     }
@@ -3327,8 +3334,16 @@ export function agentRoutes(
       return result;
     }
     if (!result.checks.some(check => check.code.includes("hello_probe"))) {
-      const providerAdapter = { anthropic: "claude_local", openai: "codex_local", openrouter: "opencode_local", xai: "grok_local" }[binding.provider];
-      const probe = await requireServerAdapter(providerAdapter).testEnvironment({ ...context, adapterType: providerAdapter, config: { ...context.config, engine: "cli" } });
+      const providerAdapter = { anthropic: "claude_local", openai: "codex_local", openrouter: "opencode_local", xai: "grok_local", deepseek: "opencode_local" }[binding.provider];
+      // OpenCode's environment test requires an explicit provider/model, and
+      // each provider needs its own — probing DeepSeek with an OpenRouter id
+      // would test an account the customer did not select.
+      const providerProbeConfig: Record<string, string> = { openrouter: "openrouter/deepseek/deepseek-v4-flash-0731", deepseek: "deepseek/deepseek-chat" };
+      const probe = await requireServerAdapter(providerAdapter).testEnvironment({
+        ...context,
+        adapterType: providerAdapter,
+        config: { ...context.config, engine: "cli", ...(providerProbeConfig[binding.provider] ? { model: providerProbeConfig[binding.provider] } : {}) },
+      });
       result.checks.push(...probe.checks);
       result.status = probe.status === "fail" ? "fail" : result.status === "warn" || probe.status === "warn" ? "warn" : "pass";
     }
