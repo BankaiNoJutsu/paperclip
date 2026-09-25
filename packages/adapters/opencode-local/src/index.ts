@@ -52,7 +52,7 @@ export const DEFAULT_OPENCODE_LOCAL_MODEL = "openai/gpt-5.2-codex";
  * Paperclip ships: there is no first-class DeepSeek provider, so a key is
  * always an OpenRouter key and billing always lands on the OpenRouter account.
  */
-export const PREFERRED_OPENCODE_MODEL = "openrouter/deepseek/deepseek-v4-flash-0731";
+export const PREFERRED_OPENCODE_MODEL = "openrouter/deepseek/deepseek-v4.1-flash";
 
 /**
  * OpenRouter's DeepSeek models, offered when discovery has not run.
@@ -61,7 +61,7 @@ export const PREFERRED_OPENCODE_MODEL = "openrouter/deepseek/deepseek-v4-flash-0
  * runs `opencode models`, so the static list is what those hosts see.
  */
 export const DEEPSEEK_OPENROUTER_MODELS = [
-  { id: PREFERRED_OPENCODE_MODEL, label: "DeepSeek V4 Flash" },
+  { id: PREFERRED_OPENCODE_MODEL, label: "DeepSeek V4.1 Flash" },
   { id: "openrouter/deepseek/deepseek-v4-pro", label: "DeepSeek V4 Pro" },
 ] as const;
 

@@ -127,12 +127,16 @@ vi.mock("./AsciiArtAnimation", () => ({ AsciiArtAnimation: () => null }));
 vi.mock("./AgentCapsule", () => ({ AgentCapsule: () => null }));
 
 import { OnboardingWizard } from "./OnboardingWizard";
+import { PREFERRED_OPENCODE_MODEL } from "@paperclipai/adapter-opencode-local";
 import { TooltipProvider } from "./ui/tooltip";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 
-const DEEPSEEK_OPENROUTER_MODEL = "openrouter/deepseek/deepseek-v4-flash-0731";
+// The catalog is described by the adapter's own preference rather than a copy of
+// its value, so changing the default does not leave these tests asserting
+// against a model the product no longer prefers.
+const DEEPSEEK_OPENROUTER_MODEL = PREFERRED_OPENCODE_MODEL;
 
 async function flushReact() {
   await act(async () => {
@@ -228,7 +232,7 @@ describe("OnboardingWizard OpenCode OpenRouter default", () => {
     // the product: the row is built from `recommended`, and OpenCode was not in
     // it, so a customer could never select the source this branch defaults.
     mockAgentsApi.adapterModels.mockResolvedValue([
-      { id: DEEPSEEK_OPENROUTER_MODEL, label: "DeepSeek V4 Flash" },
+      { id: DEEPSEEK_OPENROUTER_MODEL, label: "DeepSeek V4.1 Flash" },
     ]);
 
     const { root } = await openStep4();
@@ -276,7 +280,7 @@ describe("OnboardingWizard OpenCode OpenRouter default", () => {
     // was only visible by running the flow: the typecheck and every other test
     // passed while the step was unusable.
     mockAgentsApi.adapterModels.mockResolvedValue([
-      { id: DEEPSEEK_OPENROUTER_MODEL, label: "DeepSeek V4 Flash" },
+      { id: DEEPSEEK_OPENROUTER_MODEL, label: "DeepSeek V4.1 Flash" },
     ]);
 
     const { root } = await openStep4();
@@ -296,13 +300,13 @@ describe("OnboardingWizard OpenCode OpenRouter default", () => {
     // would be preselected against a provider this host never authenticated.
     mockAgentsApi.adapterModels.mockResolvedValue([
       { id: "openai/gpt-5.2-codex", label: "GPT-5.2 Codex" },
-      { id: DEEPSEEK_OPENROUTER_MODEL, label: "DeepSeek V4 Flash" },
+      { id: DEEPSEEK_OPENROUTER_MODEL, label: "DeepSeek V4.1 Flash" },
     ]);
 
     const { root } = await openStep4();
     await pickOpenCode();
 
-    expect(modelTrigger()!.textContent).toContain("DeepSeek V4 Flash");
+    expect(modelTrigger()!.textContent).toContain("DeepSeek V4.1 Flash");
 
     await act(async () => root.unmount());
   });

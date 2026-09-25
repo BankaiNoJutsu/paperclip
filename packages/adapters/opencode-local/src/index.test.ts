@@ -21,17 +21,18 @@ describe("resolvePreferredOpenCodeModel", () => {
   });
 
   it("picks a real DeepSeek variant out of the live-shaped OpenRouter catalog", () => {
-    // Ids observed from https://openrouter.ai/api/v1/models. The exact preferred
-    // id is absent here, which is the case the family match exists for.
+    // Ids observed from https://openrouter.ai/api/v1/models, with the preferred
+    // id removed — the case the family match exists for, and the one a real
+    // host hit when OpenRouter carried v4.1 but not the pinned v4 id.
     const catalog = [
-      { id: "openrouter/deepseek/deepseek-v4.1-flash" },
       { id: "openrouter/deepseek/deepseek-v4.1-flash:batch" },
       { id: "openrouter/deepseek/deepseek-v4-pro-0813" },
       { id: "openrouter/anthropic/claude-sonnet-4.5" },
       { id: "openrouter/openai/gpt-5.2-codex" },
     ];
+    expect(PREFERRED_OPENCODE_MODEL).not.toBe("openrouter/deepseek/deepseek-v4.1-flash:batch");
     expect(resolvePreferredOpenCodeModel(catalog)).toBe(
-      "openrouter/deepseek/deepseek-v4.1-flash",
+      "openrouter/deepseek/deepseek-v4.1-flash:batch",
     );
   });
 
