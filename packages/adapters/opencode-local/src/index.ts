@@ -52,6 +52,10 @@ export const DEFAULT_OPENCODE_LOCAL_MODEL = "openai/gpt-5.2-codex";
  * Paperclip Runner default, in eval pricing, and in the qualified ACPX profiles;
  * naming it here gives the local OpenCode lane the same default instead of a
  * second, drifting literal.
+ *
+ * Used as a first choice, not as the only one: catalogs differ by host and by
+ * account, and pinning to this exact id preselects nothing on a machine whose
+ * OpenCode exposes DeepSeek under different names.
  */
 export const PREFERRED_OPENCODE_MODEL = "openrouter/deepseek/deepseek-v4-flash-0731";
 
@@ -68,19 +72,71 @@ export const DEEPSEEK_OPENCODE_MODELS = [
 ] as const;
 
 /**
+ * Whether an OpenCode model id belongs to the DeepSeek family.
+ *
+ * Matches the provider segment rather than a substring, so a hypothetical
+ * `openai/deepseek-alike` is not adopted, and accepts a nested OpenRouter id
+ * (`openrouter/deepseek/...`) as well as a direct one (`deepseek/...`).
+ */
+export function isDeepSeekOpenCodeModelId(id: string): boolean {
+  const segments = id.trim().toLowerCase().split("/");
+  // A model id needs a model segment, so a bare provider name is not a model.
+  if (segments.length < 2 || !segments[segments.length - 1]) return false;
+  // `openrouter/deepseek/<model>` puts the family second; `deepseek/<model>`
+  // puts it first. Anything else is a different provider's model.
+  return segments[0] === "deepseek" || (segments[0] === "openrouter" && segments[1] === "deepseek");
+}
+
+/**
+ * Rank the DeepSeek variants so the most useful one wins.
+ *
+ * A general chat/flash model is the right default for an agent doing a mix of
+ * work: reasoning variants are slower and cost more per token, so they are
+ * preferred only when nothing else is offered.
+ */
+function deepSeekVariantRank(id: string): number {
+  const model = id.trim().toLowerCase();
+  if (model.includes("chat")) return 0;
+  if (model.includes("flash")) return 1;
+  if (model.includes("reason")) return 3;
+  return 2;
+}
+
+/**
  * Pick the model to preselect for a fresh OpenCode agent.
  *
  * DeepSeek when the catalog actually offers it — a discovered model is the only
- * evidence that the provider is authenticated on this host, so preferring a
- * hardcoded id over the catalog would preselect a model that cannot run. Falls
- * back to {@link DEFAULT_OPENCODE_LOCAL_MODEL} when it is absent.
+ * evidence that the provider is authenticated on this host, so naming a
+ * hardcoded id over the catalog would preselect a model that cannot run.
+ *
+ * The preference is by family, not by one exact id. Catalogs differ by host and
+ * by account: {@link PREFERRED_OPENCODE_MODEL} is what an OpenRouter account
+ * exposes, while a direct DeepSeek key exposes `deepseek/...` names, and neither
+ * is guaranteed to appear. Matching the family means the preference applies
+ * wherever DeepSeek is genuinely reachable, and the exact id still wins first
+ * when it is present.
+ *
+ * Falls back to {@link DEFAULT_OPENCODE_LOCAL_MODEL}, then to an empty string
+ * when the catalog is empty — discovery having failed is not evidence the
+ * default is available, and the picker accepts a typed id for that case.
  */
 export function resolvePreferredOpenCodeModel(
   models: ReadonlyArray<{ id: string }>,
 ): string {
-  return models.some((model) => model.id === PREFERRED_OPENCODE_MODEL)
-    ? PREFERRED_OPENCODE_MODEL
-    : DEFAULT_OPENCODE_LOCAL_MODEL;
+  if (models.some((model) => model.id === PREFERRED_OPENCODE_MODEL)) {
+    return PREFERRED_OPENCODE_MODEL;
+  }
+  const deepSeek = models
+    .map((model) => model.id)
+    .filter(isDeepSeekOpenCodeModelId)
+    .sort((a, b) => deepSeekVariantRank(a) - deepSeekVariantRank(b) || a.localeCompare(b));
+  if (deepSeek.length > 0) return deepSeek[0];
+  // The fallback is only worth returning when the catalog can actually run it;
+  // otherwise it preselects an unavailable model, which is the failure this
+  // function exists to avoid.
+  return models.some((model) => model.id === DEFAULT_OPENCODE_LOCAL_MODEL)
+    ? DEFAULT_OPENCODE_LOCAL_MODEL
+    : "";
 }
 
 export function isValidOpenCodeModelId(value: unknown): value is string {

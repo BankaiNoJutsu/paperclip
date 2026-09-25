@@ -276,6 +276,27 @@ describe("OnboardingWizard DeepSeek default", () => {
     await act(async () => root.unmount());
   });
 
+  it("preselects DeepSeek from a catalog that names it directly", async () => {
+    // Reproduces a real host, where OpenCode exposed `deepseek/...` ids and
+    // never the OpenRouter one. An exact-id preference preselected the OpenAI
+    // default there — and that catalog carried no `openai/...` entry either, so
+    // the required field was filled with a model that could not run.
+    mockAgentsApi.adapterModels.mockResolvedValue([
+      { id: "deepseek/deepseek-flash", label: "deepseek/deepseek-flash" },
+      { id: "deepseek/deepseek-v4-pro", label: "deepseek/deepseek-v4-pro" },
+      { id: "opencode/big-pickle", label: "opencode/big-pickle" },
+    ]);
+
+    const { root } = await openStep4();
+    await pickOpenCode();
+
+    const trigger = modelTrigger();
+    expect(trigger, "OpenCode onboarding should ask for a model").toBeTruthy();
+    expect(trigger!.textContent).toContain("deepseek/deepseek-flash");
+
+    await act(async () => root.unmount());
+  });
+
   it("offers manual entry when discovery returns nothing", async () => {
     // A DeepSeek-only key that `opencode models` does not enumerate is a real
     // deployment. The step must still let the customer name the model.
