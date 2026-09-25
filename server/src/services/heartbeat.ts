@@ -1,3 +1,5 @@
+import { applyWorkspaceRestoreFailure } from "@paperclipai/adapter-utils/workspace-restore-result";
+import { hasWorkspaceRestoreFailure } from "@paperclipai/shared";
 import { externalConversationStateSql, nonIdleSlackIssueCondition } from "./slack-conversation-state.js";
 import { settleSlackConversation } from "./slack-conversation-lifecycle.js";
 import { publicChatTaskUrl } from "./chat-task-url.js";
@@ -3423,6 +3425,21 @@ const heartbeatRunSafeResultJsonColumn = sql<Record<string, unknown> | null>`
         'error', left(${heartbeatRuns.resultJson} ->> 'error', ${HEARTBEAT_RUN_RESULT_SUMMARY_MAX_CHARS}),
         'stdout', left(${heartbeatRuns.resultJson} ->> 'stdout', ${HEARTBEAT_RUN_RESULT_OUTPUT_MAX_CHARS}),
         'stderr', left(${heartbeatRuns.resultJson} ->> 'stderr', ${HEARTBEAT_RUN_RESULT_OUTPUT_MAX_CHARS}),
+        'workspaceRestoreFailure', case when ${heartbeatRuns.resultJson} ->> 'workspaceRestoreFailure'
+          in ('restore_permission_denied', 'restore_lock_timeout', 'restore_unsafe_archive', 'restore_failed')
+          then ${heartbeatRuns.resultJson} -> 'workspaceRestoreFailure' end,
+        'finalResponseRecorded', case when jsonb_typeof(${heartbeatRuns.resultJson} -> 'finalResponseRecorded') = 'boolean'
+          then ${heartbeatRuns.resultJson} -> 'finalResponseRecorded' end,
+        'executionBeforeRestore', case when jsonb_typeof(${heartbeatRuns.resultJson} -> 'executionBeforeRestore') = 'object'
+          then jsonb_strip_nulls(jsonb_build_object(
+            'errorCode', left(${heartbeatRuns.resultJson} #>> '{executionBeforeRestore,errorCode}', 128),
+            'exitCode', case when jsonb_typeof(${heartbeatRuns.resultJson} #> '{executionBeforeRestore,exitCode}') = 'number'
+              and length(${heartbeatRuns.resultJson} #>> '{executionBeforeRestore,exitCode}') < 16
+              then ${heartbeatRuns.resultJson} #> '{executionBeforeRestore,exitCode}' end,
+            'signal', left(${heartbeatRuns.resultJson} #>> '{executionBeforeRestore,signal}', 50),
+            'timedOut', case when jsonb_typeof(${heartbeatRuns.resultJson} #> '{executionBeforeRestore,timedOut}') = 'boolean'
+              then ${heartbeatRuns.resultJson} #> '{executionBeforeRestore,timedOut}' end
+          )) end,
         'stdoutTruncated', case
           when length(${heartbeatRuns.resultJson} ->> 'stdout') > ${HEARTBEAT_RUN_RESULT_OUTPUT_MAX_CHARS}
             then to_jsonb(true)
@@ -24382,9 +24399,9 @@ export function heartbeatService(
             if (!guardedDispatch.dispatched) return;
             adapterResult = await guardedDispatch.resultPromise;
           }
-          // Adapter returned cleanly, which means its workspace-restore finally
-          // block also ran without throwing. Record the workspace_finalize
-          // barrier so dependents that share this executionWorkspace can wake.
+          adapterResult = applyWorkspaceRestoreFailure(adapterResult);
+          // A returned result can include a failed restore. Keep the workspace
+          // barrier closed until required files have been restored.
           // If recording the barrier itself fails, propagate as a run failure
           // rather than silently leaving dependents stranded behind a missing
           // finalize row.
@@ -24400,15 +24417,16 @@ export function heartbeatService(
                 eq(heartbeatRuns.status, "running"),
               ),
             );
-          await recordWorkspaceFinalize("succeeded");
+          const workspaceFinalizeStatus = hasWorkspaceRestoreFailure(adapterResult.resultJson) ? "failed" : "succeeded";
+          await recordWorkspaceFinalize(workspaceFinalizeStatus);
           if (adapterResult.nativeFinalization) {
             adapterResult.nativeFinalization.workspaceFinalizeStatus =
-              "succeeded";
+              workspaceFinalizeStatus;
             try {
               const finalized = await finalizeNativeRun({
                 db,
                 runId: run.id,
-                workspaceFinalizeStatus: "succeeded",
+                workspaceFinalizeStatus,
                 preserveProviderAttempt: Boolean(nativeWorkspaceSync),
               });
               await dispatchPendingNativeStatusWakeups({
@@ -26933,6 +26951,7 @@ export function heartbeatService(
           }
 
           let reconciledSourceRunId: string | null = null;
+          let reconciledRestoreRetryCount: number | null = null;
           if (executionReconciliationWake) {
             const actionId = readNonEmptyString(
               enrichedContextSnapshot.recoveryActionId,
@@ -27036,6 +27055,15 @@ export function heartbeatService(
             }
             if (action.evidence.continuationDelivery !== "pending")
               return { kind: "skipped" as const };
+            const [reconciledRun] = await tx.select().from(heartbeatRuns).where(and(
+              eq(heartbeatRuns.companyId, issue.companyId), eq(heartbeatRuns.id, sourceRunId),
+            ));
+            if (hasWorkspaceRestoreFailure(reconciledRun?.resultJson)) {
+              if ((readNonEmptyString(decision.workspaceRepairEvidence)?.length ?? 0) < 20)
+                return { kind: "skipped" as const };
+              // Repair does not reset the remaining automatic retry budget.
+              reconciledRestoreRetryCount = executionFailureRetryCount(reconciledRun!);
+            }
             reconciledSourceRunId = sourceRunId;
           }
 
@@ -27982,6 +28010,10 @@ export function heartbeatService(
               ...(reconciledSourceRunId
                 ? { retryOfRunId: reconciledSourceRunId }
                 : {}),
+              ...(reconciledRestoreRetryCount !== null ? {
+                scheduledRetryAttempt: reconciledRestoreRetryCount,
+                scheduledRetryReason: "transient_failure",
+              } : {}),
             })
             .returning()
             .then((rows) => rows[0]);
