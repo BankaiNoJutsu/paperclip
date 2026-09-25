@@ -43,11 +43,11 @@
   ],
   "scripts": {
     "prebuild": "pnpm -C ../../../.. --filter @paperclipai/plugin-sdk ensure-build-deps",
-    "build": "rm -rf dist && tsc",
-    "clean": "rm -rf dist",
+    "build": "node ../../../../scripts/fsx.mjs rm dist && tsc",
+    "clean": "node ../../../../scripts/fsx.mjs rm dist",
     "typecheck": "pnpm -C ../../../.. --filter @paperclipai/plugin-sdk ensure-build-deps && tsc --noEmit",
     "test": "pnpm -C ../../../.. --filter @paperclipai/plugin-sdk ensure-build-deps && vitest run --config vitest.config.ts",
-    "prepack": "rm -f package.dev.json && cp package.json package.dev.json && node ../../../../scripts/generate-plugin-package-json.mjs",
+    "prepack": "node ../../../../scripts/fsx.mjs rm package.dev.json && node ../../../../scripts/fsx.mjs cp package.json package.dev.json && node ../../../../scripts/generate-plugin-package-json.mjs",
     "postpack": "if [ -f package.dev.json ]; then mv package.dev.json package.json; fi"
   },
   "dependencies": {

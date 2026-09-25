@@ -1,1 +1,51 @@
+# Normalize line endings in the working tree.
+#
+# With `core.autocrlf=true` — the Git for Windows default — a checkout writes
+# CRLF into text files. Generated sources are compared against expected content
+# by exact string match during the build, and those expectations are written
+# with a bare "\n", so on Windows the check fails with a mismatch that the diff
+# view cannot explain: Git normalizes the endings away on the way into the
+# index, so `git status` reports the file as unmodified while the check that
+# reads it from disk sees CRLF.
+#
+# `text=auto` plus `eol=lf` stores LF in the repository and checks LF out on
+# every platform, which is what the generators and their checks already assume.
+* text=auto eol=lf
+
+# Windows-only files must keep the endings their tooling expects.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Binary assets are left alone.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.pdf binary
+*.zip binary
+*.gz binary
+*.tgz binary
+*.mp4 binary
+*.webm binary
+*.wasm binary
+*.node binary
+*.exe binary
+*.dll binary
+*.so binary
+*.dylib binary
+*.a binary
+*.lib binary
+*.jar binary
+*.class binary
+
+# Snapshot-style fixtures are compared byte for byte by their tests.
+*.snap text eol=lf
+
 patches/*.patch whitespace=-space-before-tab
