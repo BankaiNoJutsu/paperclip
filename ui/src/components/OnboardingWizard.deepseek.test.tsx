@@ -200,9 +200,17 @@ async function pickOpenCode() {
  * once one is seeded, so both are matched — the empty case is exactly what the
  * manual-entry test is asserting about.
  */
+/**
+ * The model picker's trigger.
+ *
+ * Excludes the provider radio group: it also renders "DeepSeek", so a match on
+ * that word alone finds the provider button instead of the model control.
+ */
 function modelTrigger() {
-  return [...document.body.querySelectorAll("button")].find((button) =>
-    /Select model|deepseek|gpt-/i.test(button.textContent ?? ""),
+  return [...document.body.querySelectorAll("button")].find(
+    (button) =>
+      button.getAttribute("role") !== "radio" &&
+      /Select model|deepseek|gpt-/i.test(button.textContent ?? ""),
   );
 }
 
@@ -235,6 +243,32 @@ describe("OnboardingWizard DeepSeek default", () => {
     const trigger = modelTrigger();
     expect(trigger, "OpenCode onboarding should ask for a model").toBeTruthy();
     expect(trigger!.textContent).toContain("DeepSeek V4 Flash");
+
+    await act(async () => root.unmount());
+  });
+
+  it("asks which account pays, and offers DeepSeek as an answer", async () => {
+    // The regression that blocked a real customer: OpenCode always validated
+    // against OpenRouter, so a DeepSeek key was rejected as invalid. The card
+    // has to let the customer name the account rather than assume one.
+    mockAgentsApi.adapterModels.mockResolvedValue([
+      { id: "deepseek/deepseek-flash", label: "deepseek/deepseek-flash" },
+    ]);
+
+    const { root } = await openStep4();
+    await pickOpenCode();
+
+    const providerRadios = [...document.body.querySelectorAll('[role="radio"]')]
+      .map((node) => node.textContent ?? "")
+      .filter((text) => /DeepSeek|OpenRouter/i.test(text));
+    expect(
+      providerRadios.some((text) => /DeepSeek/.test(text)),
+      "DeepSeek must be offered, or its key cannot be validated correctly",
+    ).toBe(true);
+    expect(
+      providerRadios.some((text) => /OpenRouter/.test(text)),
+      "OpenRouter must stay offered for customers paying that way",
+    ).toBe(true);
 
     await act(async () => root.unmount());
   });

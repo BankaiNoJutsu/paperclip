@@ -21,6 +21,40 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 
+/**
+ * The providers an adapter's key can belong to, in the order to offer them.
+ *
+ * OpenCode multiplexes several vendors, so its adapter type alone does not name
+ * the account being paid. Every other adapter maps to exactly one provider.
+ */
+export function aiProvidersForAdapter(adapterType: string): AiProvider[] {
+  const sole = aiProviderForAdapter(adapterType);
+  if (adapterType !== "opencode_local") return sole ? [sole] : [];
+  // Both reach DeepSeek, but through different accounts: `deepseek` bills
+  // DeepSeek directly, `openrouter` bills OpenRouter. Offering both is what lets
+  // a customer say which one their key belongs to.
+  return ["deepseek", "openrouter"];
+}
+
+/**
+ * The provider a chosen model implies, when it implies exactly one.
+ *
+ * Read off the model's provider segment rather than guessed, because the
+ * segment is what OpenCode uses to route the call: `deepseek/x` runs against
+ * DeepSeek's own API, `openrouter/deepseek/x` against OpenRouter. Validating a
+ * key against the wrong one rejects a good key.
+ */
+export function aiProviderForModel(
+  adapterType: string,
+  model: string | undefined,
+): AiProvider | undefined {
+  const candidates = aiProvidersForAdapter(adapterType);
+  if (candidates.length <= 1) return candidates[0];
+  const segment = model?.trim().toLowerCase().split("/")[0] ?? "";
+  if (!segment) return undefined;
+  return candidates.find((provider) => provider === segment);
+}
+
 export function aiProviderForAdapter(
   adapterType: string,
 ): AiProvider | undefined {

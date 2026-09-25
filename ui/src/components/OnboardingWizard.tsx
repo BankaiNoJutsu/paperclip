@@ -2,7 +2,9 @@ import { healthApi } from "@/api/health";
 import { LocalProviderLoginInstructions } from "./AdapterLoginChrome";
 import { useLocalAiLogin } from "./ai-connections/useLocalAiLogin";
 import { aiConnectionsApi } from "@/api/ai-connections";
-import { aiProviderForAdapter } from "./ai-connections/AiConnectionField";
+import { aiProviderForAdapter, aiProviderForModel, aiProvidersForAdapter } from "./ai-connections/AiConnectionField";
+import { AI_PROVIDERS } from "./ai-connections/model";
+import type { AiProvider } from "./ai-connections/model";
 import type { AiConnectionBinding } from "@paperclipai/shared";
 import { storeProviderApiKey } from "../lib/provider-credential";
 import { SavedProviderKeySelect, useSavedProviderKeys } from "./onboarding/SavedProviderKeySelect";
@@ -679,6 +681,17 @@ function OnboardingWizardInner({
    * `localStorage`, and a provider key does not belong there.
    */
   const [apiKey, setApiKey] = useState("");
+  /**
+   * Which account an OpenCode key belongs to, when the model does not say.
+   *
+   * OpenCode reaches DeepSeek either directly or through OpenRouter, and the
+   * two bill different accounts. Validation is provider-specific, so sending a
+   * DeepSeek key to OpenRouter's endpoint rejects a good key — which is what
+   * happened while the provider was hardcoded to OpenRouter. The picker sets
+   * this explicitly; a model whose provider segment already names one of the
+   * candidates settles it without asking.
+   */
+  const [apiKeyProvider, setApiKeyProvider] = useState<AiProvider | null>(null);
   // The owner's stored Claude subscription login, read right before the hire
   // (see handleGiveHeartbeat). Onboarding applies it with no extra control,
   // so nothing else reads this state yet.
@@ -756,7 +769,18 @@ function OnboardingWizardInner({
    */
   const apiKeySecretRef = useRef<{ key: string; companyId: string; envKey: string; binding?: Awaited<ReturnType<typeof storeProviderApiKey>>["binding"]; aiConnection?: AiConnectionBinding } | null>(null);
   const managedSubscriptionRef = useRef<{ companyId: string; binding: AiConnectionBinding } | null>(null);
-  const managedProvider = aiProviderForAdapter(adapterType);
+  /**
+   * The provider whose account this step is connecting.
+   *
+   * An explicit pick wins; otherwise a model whose provider segment names one
+   * of the adapter's candidates settles it. The fallback is the adapter's sole
+   * provider, which is what every non-OpenCode adapter has.
+   */
+  const providerOptions = aiProvidersForAdapter(adapterType);
+  const managedProvider =
+    (apiKeyProvider && providerOptions.includes(apiKeyProvider) ? apiKeyProvider : undefined) ??
+    aiProviderForModel(adapterType, model) ??
+    aiProviderForAdapter(adapterType);
   function managedBindingForStep(): AiConnectionBinding | undefined {
     if (credentialMode === "api") return selectedApiKey?.aiConnection ?? (
       !selectedApiKey && apiKeySecretRef.current?.companyId === createdCompanyId && apiKeySecretRef.current.envKey === apiKeyEnvKeyFor(adapterType)
@@ -2778,9 +2802,40 @@ function OnboardingWizardInner({
                     ) : credentialMode === "api" ? (
                       <OnboardingLoginCard
                         instruction={savedKeys.options.length ? "Choose a saved API key or enter a new one" : `Provide your ${
-                          CONNECT_SOURCE_NAMES[adapterType] ?? adapterType
+                          managedProvider ? AI_PROVIDERS[managedProvider].name : connectSourceLabel
                         } API key to connect`}
                       >
+                        {/*
+                          Only when the adapter reaches more than one vendor.
+                          OpenCode is the case: a DeepSeek key and an OpenRouter
+                          key both work there but are validated against
+                          different endpoints, so the card has to ask which
+                          account is being paid. Naming the adapter here
+                          ("opencode_local") would say nothing about that.
+                        */}
+                        {providerOptions.length > 1 && !selectedApiKey && (
+                          <div className="space-y-2">
+                            <p className="text-sm font-medium">Provider</p>
+                            <div role="radiogroup" aria-label="Provider" className="flex flex-wrap gap-2">
+                              {providerOptions.map((option) => (
+                                <button
+                                  key={option}
+                                  type="button"
+                                  role="radio"
+                                  aria-checked={managedProvider === option}
+                                  onClick={() => setApiKeyProvider(option)}
+                                  className={
+                                    managedProvider === option
+                                      ? "rounded-md border border-primary bg-primary/10 px-3 py-1.5 text-sm font-medium"
+                                      : "rounded-md border border-border px-3 py-1.5 text-sm text-muted-foreground hover:bg-accent"
+                                  }
+                                >
+                                  {AI_PROVIDERS[option].name}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                         <SavedProviderKeySelect {...savedKeys} disabled={loading || adapterEnvLoading} value={selectedApiKey?.id ?? ""} onChange={(id) => {
                           setSelectedSavedKey(createdCompanyId ? { companyId: createdCompanyId, envKey: apiKeyEnvKeyFor(adapterType), id } : null);
                           setApiKey("");
