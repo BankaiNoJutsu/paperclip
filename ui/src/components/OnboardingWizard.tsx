@@ -108,7 +108,7 @@ import { DEFAULT_CODEX_LOCAL_BYPASS_APPROVALS_AND_SANDBOX } from "@paperclipai/a
 import { DEFAULT_CURSOR_LOCAL_MODEL } from "@paperclipai/adapter-cursor-local";
 import { DEFAULT_GEMINI_LOCAL_MODEL } from "@paperclipai/adapter-gemini-local";
 import { DEFAULT_KIMI_LOCAL_MODEL } from "@paperclipai/adapter-kimi-local";
-import { DEFAULT_OPENCODE_LOCAL_MODEL, isValidOpenCodeModelId } from "@paperclipai/adapter-opencode-local";
+import { DEFAULT_OPENCODE_LOCAL_MODEL, isValidOpenCodeModelId, resolvePreferredOpenCodeModel } from "@paperclipai/adapter-opencode-local";
 import {
   canGoBackFromOnboardingStep,
   canJumpToOnboardingStep,
@@ -1498,7 +1498,11 @@ function OnboardingWizardInner({
     setSourcePicked(false);
     if (next === "codex_local") return;
     if (next === "opencode_local") {
-      setModel(DEFAULT_OPENCODE_LOCAL_MODEL);
+      // DeepSeek over OpenRouter when the catalog proves it is reachable here,
+      // otherwise OpenCode's long-standing OpenAI default. Read from the
+      // discovered models rather than hardcoded, so the preselection is one
+      // this host can actually run.
+      setModel(resolvePreferredOpenCodeModel(adapterModels ?? []));
       return;
     }
     if (next === "gemini_local") {
@@ -1511,6 +1515,22 @@ function OnboardingWizardInner({
     }
     setModel("");
   }, [adapterRegistryLoaded, recommendedAdapters, moreAdapters, adapterType]);
+
+  /**
+   * Fill the OpenCode model once discovery answers.
+   *
+   * The tile press happens before the catalog request resolves, so the setter
+   * above runs against an empty list and would leave the required field blank —
+   * or, worse, on the OpenAI fallback, which a host without an `openai/...`
+   * entry cannot run. Only an empty field is filled, so a model the customer or
+   * a restored draft already chose is never overwritten.
+   */
+  useEffect(() => {
+    if (step !== 4 || adapterType !== "opencode_local") return;
+    if (model.trim()) return;
+    if (!(adapterModels ?? []).length) return;
+    setModel(resolvePreferredOpenCodeModel(adapterModels ?? []));
+  }, [step, adapterType, model, adapterModels]);
 
   const COMMAND_PLACEHOLDERS: Record<string, string> = {
     claude_local: "claude",
@@ -2691,7 +2711,7 @@ function OnboardingWizardInner({
                         autoConnectStartedRef.current = false;
                         setSourcePicked(true);
                         setAdapterType(id);
-                        if (id === "opencode_local") setModel(DEFAULT_OPENCODE_LOCAL_MODEL);
+                        if (id === "opencode_local") setModel(resolvePreferredOpenCodeModel(adapterModels ?? []));
                         else if (id !== "codex_local") setModel("");
                         setConnectPhase("collapsing");
                       }}

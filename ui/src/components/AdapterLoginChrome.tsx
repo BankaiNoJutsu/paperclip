@@ -50,6 +50,10 @@ export const CONNECT_SOURCE_NAMES: Record<string, string> = {
   claude_local: "Claude",
   codex_local: "OpenAI",
   grok_local: "Grok",
+  // OpenCode is a harness, not a vendor. Listed so the fallback never renders
+  // the adapter type at a customer, which "Provide your opencode_local API key"
+  // was doing.
+  opencode_local: "OpenCode",
 };
 
 /** The provider name for a source, falling back to the type when unlisted. */

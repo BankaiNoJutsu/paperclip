@@ -116,6 +116,10 @@ const adapterDisplayMap: Record<string, AdapterDisplayInfo> = {
     label: "OpenCode",
     description: "OpenCode multi-provider harness",
     icon: OpenCodeLogoIcon,
+    // Recommended so the source row offers it. The row is built from this flag,
+    // and OpenCode is the only route to the OpenRouter-sponsered DeepSeek
+    // default, so without it that default has no way to be selected.
+    recommended: true,
   },
   pi_local: {
     label: "Pi",
