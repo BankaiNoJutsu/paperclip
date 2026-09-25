@@ -194,6 +194,19 @@ async function pickOpenCode() {
   for (let i = 0; i < 10; i++) await flushReact();
 }
 
+/**
+ * The model picker's trigger.
+ *
+ * It reads "Select model (required)" while empty and shows the chosen id once
+ * one is seeded, so both are matched — the empty case is exactly what the
+ * manual-entry test asserts about.
+ */
+function modelTrigger() {
+  return [...document.body.querySelectorAll("button")].find((button) =>
+    /Select model|deepseek|gpt-/i.test(button.textContent ?? ""),
+  );
+}
+
 describe("OnboardingWizard OpenCode OpenRouter default", () => {
   beforeEach(() => {
     window.localStorage.clear();
@@ -253,6 +266,90 @@ describe("OnboardingWizard OpenCode OpenRouter default", () => {
     await pickOpenCode();
 
     expect(document.body.textContent).toMatch(/API key/i);
+
+    await act(async () => root.unmount());
+  });
+
+  it("shows the model picker, without which OpenCode cannot be connected", async () => {
+    // OpenCode requires an explicit `model` in provider/model form and has no
+    // single default, so the step cannot complete without a picker. Its absence
+    // was only visible by running the flow: the typecheck and every other test
+    // passed while the step was unusable.
+    mockAgentsApi.adapterModels.mockResolvedValue([
+      { id: DEEPSEEK_OPENROUTER_MODEL, label: "DeepSeek V4 Flash" },
+    ]);
+
+    const { root } = await openStep4();
+    await pickOpenCode();
+
+    const trigger = modelTrigger();
+    expect(
+      trigger,
+      "the connect step must offer a model control for OpenCode",
+    ).toBeTruthy();
+
+    await act(async () => root.unmount());
+  });
+
+  it("preselects the OpenRouter DeepSeek model when the catalog offers it", async () => {
+    // The catalog is what makes the preference safe: an id it does not carry
+    // would be preselected against a provider this host never authenticated.
+    mockAgentsApi.adapterModels.mockResolvedValue([
+      { id: "openai/gpt-5.2-codex", label: "GPT-5.2 Codex" },
+      { id: DEEPSEEK_OPENROUTER_MODEL, label: "DeepSeek V4 Flash" },
+    ]);
+
+    const { root } = await openStep4();
+    await pickOpenCode();
+
+    expect(modelTrigger()!.textContent).toContain("DeepSeek V4 Flash");
+
+    await act(async () => root.unmount());
+  });
+
+  it("adopts an OpenRouter DeepSeek variant it has not seen before", async () => {
+    // Matching one exact id would let the default lapse the moment OpenRouter
+    // moves the model, which is what the family match exists to prevent.
+    mockAgentsApi.adapterModels.mockResolvedValue([
+      { id: "openrouter/deepseek/deepseek-v5-flash", label: "DeepSeek V5 Flash" },
+    ]);
+
+    const { root } = await openStep4();
+    await pickOpenCode();
+
+    expect(modelTrigger()!.textContent).toContain("DeepSeek V5 Flash");
+
+    await act(async () => root.unmount());
+  });
+
+  it("never preselects a directly billed deepseek model", async () => {
+    // `deepseek/...` bills DeepSeek directly and this build configures no key
+    // for that route, so adopting one would put the agent on a provider it
+    // cannot run against.
+    mockAgentsApi.adapterModels.mockResolvedValue([
+      { id: "deepseek/deepseek-flash", label: "deepseek/deepseek-flash" },
+    ]);
+
+    const { root } = await openStep4();
+    await pickOpenCode();
+
+    expect(modelTrigger()?.textContent ?? "").not.toContain("deepseek/deepseek-flash");
+
+    await act(async () => root.unmount());
+  });
+
+  it("offers manual entry when discovery returns nothing", async () => {
+    // Discovery failing must still leave a way to name a model, since the field
+    // is required and OpenCode has no default to fall back on.
+    mockAgentsApi.adapterModels.mockResolvedValue([]);
+
+    const { root } = await openStep4();
+    await pickOpenCode();
+
+    expect(
+      modelTrigger(),
+      "an empty catalog must still leave a way to name a model",
+    ).toBeTruthy();
 
     await act(async () => root.unmount());
   });

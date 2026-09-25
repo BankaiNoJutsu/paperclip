@@ -20,7 +20,7 @@ import type {
   InstanceSettings,
 } from "@paperclipai/shared";
 import { AGENT_ROLES, AGENT_ROLE_LABELS, ADAPTER_AUTH_MISSING_CHECK_CODE } from "@paperclipai/shared";
-import { AdapterLoginPanel } from "./AgentConfigForm";
+import { AdapterLoginPanel, ModelDropdown } from "./AgentConfigForm";
 import {
   CONNECT_SOURCE_NAMES,
   OnboardingCardField,
@@ -926,10 +926,26 @@ function OnboardingWizardInner({
   } = useQuery({
     // The wizard doesn't expose an environment selector, so models always
     // resolve against the local Paperclip host (environmentId = null).
+    //
+    // OpenCode is asked for the OpenRouter catalog specifically. Its own list is
+    // whatever providers that CLI happens to have authenticated, so on a host
+    // with a DeepSeek key configured it reports bare `deepseek/...` ids — a
+    // route this build has no key for. Offering them invites a hire that fails
+    // at run time. The OpenRouter catalog is fetched from OpenRouter itself and
+    // carries the `openrouter/...` ids this build supports.
     queryKey: createdCompanyId
-      ? queryKeys.agents.adapterModels(createdCompanyId, adapterType, null)
-      : ["agents", "none", "adapter-models", adapterType, null],
-    queryFn: () => agentsApi.adapterModels(createdCompanyId!, adapterType, { environmentId: null }),
+      ? queryKeys.agents.adapterModels(
+          createdCompanyId,
+          adapterType,
+          null,
+          adapterType === "opencode_local" ? "openrouter" : undefined,
+        )
+      : ["agents", "none", "adapter-models", adapterType, null, adapterType === "opencode_local" ? "openrouter" : null],
+    queryFn: () =>
+      agentsApi.adapterModels(createdCompanyId!, adapterType, {
+        environmentId: null,
+        ...(adapterType === "opencode_local" ? { provider: "openrouter" } : {}),
+      }),
     // Models are picked on step 4 (Connect a model).
     enabled: Boolean(createdCompanyId) && effectiveOnboardingOpen && step === 4
   });
@@ -2916,11 +2932,40 @@ function OnboardingWizardInner({
                   </motion.div>
 
                   {/* Conditional adapter fields */}
-                  {/* No model picker. Every adapter this step offers resolves
-                      its own default (see buildAdapterConfig), so the picker
-                      asked the customer to choose a model before they had any
-                      way to judge one — and the agent's model is changeable
-                      later, where its work gives the choice meaning. */}
+                  {/* Only OpenCode asks. Every other adapter this step offers
+                      resolves its own default (see buildAdapterConfig), so a
+                      picker there asked the customer to choose a model before
+                      they had any way to judge one — and the agent's model is
+                      changeable later, where its work gives the choice meaning.
+
+                      OpenCode is the exception because it is the one source with
+                      no single default: `model` is required, and which models
+                      exist depends on which providers this host has
+                      authenticated. Preselecting DeepSeek without showing the
+                      choice would hire a model the customer never saw. */}
+                  {adapterType === "opencode_local" && (
+                    <div className="space-y-2">
+                      <ModelDropdown
+                        models={adapterModels ?? []}
+                        value={model}
+                        onChange={setModel}
+                        open={modelOpen}
+                        onOpenChange={setModelOpen}
+                        allowDefault={false}
+                        required
+                        groupByProvider
+                        creatable
+                        emptyDetectHint="No model discovered. Enter a provider/model value manually."
+                      />
+                      {adapterModelsError && (
+                        <p className="text-xs text-destructive">
+                          {adapterModelsError instanceof Error
+                            ? adapterModelsError.message
+                            : "Failed to load OpenCode models."}
+                        </p>
+                      )}
+                    </div>
+                  )}
 
                   {/* Progress is shown above; failed checks remain actionable here. */}
                   {/* Not while the hire is in flight. The probe's result lands

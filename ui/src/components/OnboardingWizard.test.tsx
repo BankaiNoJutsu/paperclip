@@ -250,6 +250,10 @@ import { queryKeys } from "../lib/queryKeys";
 import { ADAPTER_AUTH_MISSING_CHECK_CODE, getEnvironmentCapabilities } from "@paperclipai/shared";
 import { CLAUDE_OAUTH_TOKEN_ENV_KEY } from "./environment-variables-editor/model";
 import { ONBOARDING_STORAGE_KEY, OnboardingWizard } from "./OnboardingWizard";
+// The OpenCode model picker renders a Tooltip, which requires its provider —
+// the same wrapper the real app's root supplies. Only OpenCode shows a picker,
+// so this went unnoticed until OpenCode became selectable.
+import { TooltipProvider } from "./ui/tooltip";
 import { CONNECTED_HOLD_MS } from "./onboarding/onboarding-motion";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -420,7 +424,9 @@ describe("OnboardingWizard restore-gate (stale localStorage across accounts)", (
         act(async () => {
           root.render(
             <QueryClientProvider client={queryClient}>
-              <OnboardingWizard />
+              <TooltipProvider>
+                <OnboardingWizard />
+              </TooltipProvider>
             </QueryClientProvider>,
           );
         });
@@ -514,7 +520,9 @@ describe("OnboardingWizard restore-gate (stale localStorage across accounts)", (
       await act(async () => {
         root.render(
           <QueryClientProvider client={queryClient}>
-            <OnboardingWizard />
+            <TooltipProvider>
+                <OnboardingWizard />
+              </TooltipProvider>
           </QueryClientProvider>,
         );
       });
@@ -590,7 +598,9 @@ describe("OnboardingWizard restore-gate (stale localStorage across accounts)", (
         act(async () => {
           root.render(
             <QueryClientProvider client={queryClient}>
-              <OnboardingWizard />
+              <TooltipProvider>
+                <OnboardingWizard />
+              </TooltipProvider>
             </QueryClientProvider>,
           );
         });
@@ -770,7 +780,9 @@ describe("OnboardingWizard restore-gate (stale localStorage across accounts)", (
       await act(async () => {
         root.render(
           <QueryClientProvider client={queryClient}>
-            <OnboardingWizard />
+            <TooltipProvider>
+                <OnboardingWizard />
+              </TooltipProvider>
           </QueryClientProvider>,
         );
       });
@@ -1319,7 +1331,9 @@ describe("OnboardingWizard restore-gate (stale localStorage across accounts)", (
       act(async () => {
         root.render(
           <QueryClientProvider client={queryClient}>
-            <OnboardingWizard />
+            <TooltipProvider>
+                <OnboardingWizard />
+              </TooltipProvider>
           </QueryClientProvider>,
         );
       });
@@ -1392,7 +1406,9 @@ describe("OnboardingWizard restore-gate (stale localStorage across accounts)", (
     await act(async () => {
       root.render(
         <QueryClientProvider client={queryClient}>
-          <OnboardingWizard />
+          <TooltipProvider>
+                <OnboardingWizard />
+              </TooltipProvider>
         </QueryClientProvider>,
       );
     });
@@ -1449,7 +1465,9 @@ describe("OnboardingWizard restore-gate (stale localStorage across accounts)", (
     await act(async () => {
       root.render(
         <QueryClientProvider client={queryClient}>
-          <OnboardingWizard />
+          <TooltipProvider>
+                <OnboardingWizard />
+              </TooltipProvider>
         </QueryClientProvider>,
       );
     });
@@ -1511,7 +1529,9 @@ describe("OnboardingWizard restore-gate (stale localStorage across accounts)", (
     await act(async () => {
       root.render(
         <QueryClientProvider client={queryClient}>
-          <OnboardingWizard />
+          <TooltipProvider>
+                <OnboardingWizard />
+              </TooltipProvider>
         </QueryClientProvider>,
       );
     });
@@ -1551,7 +1571,9 @@ describe("OnboardingWizard restore-gate (stale localStorage across accounts)", (
     await act(async () => {
       root.render(
         <QueryClientProvider client={queryClient}>
-          <OnboardingWizard />
+          <TooltipProvider>
+                <OnboardingWizard />
+              </TooltipProvider>
         </QueryClientProvider>,
       );
     });
@@ -1596,7 +1618,9 @@ describe("OnboardingWizard restore-gate (stale localStorage across accounts)", (
     await act(async () => {
       root.render(
         <QueryClientProvider client={queryClient}>
-          <OnboardingWizard />
+          <TooltipProvider>
+                <OnboardingWizard />
+              </TooltipProvider>
         </QueryClientProvider>,
       );
     });
@@ -1639,7 +1663,9 @@ describe("OnboardingWizard restore-gate (stale localStorage across accounts)", (
     await act(async () => {
       root.render(
         <QueryClientProvider client={queryClient}>
-          <OnboardingWizard />
+          <TooltipProvider>
+                <OnboardingWizard />
+              </TooltipProvider>
         </QueryClientProvider>,
       );
     });
@@ -1687,7 +1713,9 @@ describe("OnboardingWizard restore-gate (stale localStorage across accounts)", (
     await act(async () => {
       root.render(
         <QueryClientProvider client={queryClient}>
-          <OnboardingWizard />
+          <TooltipProvider>
+                <OnboardingWizard />
+              </TooltipProvider>
         </QueryClientProvider>,
       );
     });
@@ -1731,7 +1759,9 @@ describe("OnboardingWizard restore-gate (stale localStorage across accounts)", (
     await act(async () => {
       root.render(
         <QueryClientProvider client={queryClient}>
-          <OnboardingWizard />
+          <TooltipProvider>
+                <OnboardingWizard />
+              </TooltipProvider>
         </QueryClientProvider>,
       );
     });
@@ -1785,7 +1815,9 @@ describe("OnboardingWizard restore-gate (stale localStorage across accounts)", (
     await act(async () => {
       root.render(
         <QueryClientProvider client={queryClient}>
-          <OnboardingWizard />
+          <TooltipProvider>
+                <OnboardingWizard />
+              </TooltipProvider>
         </QueryClientProvider>,
       );
     });
@@ -1821,7 +1853,9 @@ describe("OnboardingWizard restore-gate (stale localStorage across accounts)", (
     await act(async () => {
       root.render(
         <QueryClientProvider client={queryClient}>
-          <OnboardingWizard />
+          <TooltipProvider>
+                <OnboardingWizard />
+              </TooltipProvider>
         </QueryClientProvider>,
       );
     });
@@ -1859,7 +1893,9 @@ describe("OnboardingWizard restore-gate (stale localStorage across accounts)", (
     await act(async () => {
       root.render(
         <QueryClientProvider client={queryClient}>
-          <OnboardingWizard />
+          <TooltipProvider>
+                <OnboardingWizard />
+              </TooltipProvider>
         </QueryClientProvider>,
       );
     });
@@ -1901,7 +1937,9 @@ describe("OnboardingWizard restore-gate (stale localStorage across accounts)", (
     await act(async () => {
       root.render(
         <QueryClientProvider client={queryClient}>
-          <OnboardingWizard />
+          <TooltipProvider>
+                <OnboardingWizard />
+              </TooltipProvider>
         </QueryClientProvider>,
       );
     });
@@ -1925,7 +1963,9 @@ describe("OnboardingWizard restore-gate (stale localStorage across accounts)", (
     await act(async () => {
       root.render(
         <QueryClientProvider client={queryClient}>
-          <OnboardingWizard />
+          <TooltipProvider>
+                <OnboardingWizard />
+              </TooltipProvider>
         </QueryClientProvider>,
       );
     });
@@ -2000,7 +2040,9 @@ describe("OnboardingWizard restore-gate (stale localStorage across accounts)", (
       await act(async () => {
         root.render(
           <QueryClientProvider client={queryClient}>
-            <OnboardingWizard />
+            <TooltipProvider>
+                <OnboardingWizard />
+              </TooltipProvider>
           </QueryClientProvider>,
         );
       });
@@ -3316,7 +3358,9 @@ describe("OnboardingWizard restore-gate (stale localStorage across accounts)", (
             mockCompany.companies.push({ id: "company-other", name: "Other", issuePrefix: "OTH" });
             mockDialog.onboardingOptions = { initialStep: 4, companyId: "company-other" };
             managedApi.checkLocalLogin.mockResolvedValue({ status: "sign_in_required" });
-            await act(async () => root.render(<QueryClientProvider client={queryClient}><OnboardingWizard /></QueryClientProvider>));
+            await act(async () => root.render(<QueryClientProvider client={queryClient}><TooltipProvider>
+                <OnboardingWizard />
+              </TooltipProvider></QueryClientProvider>));
             await settle();
           } else if (navigation === "unmount") {
             await act(async () => root.unmount());
