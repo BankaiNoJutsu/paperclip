@@ -193,12 +193,13 @@ vi.mock("../adapters/metadata", () => ({ isVisualAdapterChoice: () => true }));
 vi.mock("../adapters/adapter-display-registry", () => ({
   getAdapterDisplay: (type: string) => ({
     type,
-    // Mirrors the real registry, where these two and only these two are
+    // Mirrors the real registry, where these three and only these three are
     // `recommended`. A blanket `false` used to be harmless because every adapter
     // then sat in the "Advanced settings" disclosure and was reachable anyway;
     // with the step down to a tile row built from this flag, it made that row
-    // empty in every test and hid the surface under it.
-    recommended: type === "claude_local" || type === "codex_local",
+    // empty in every test and hid the surface under it. OpenCode joined the set
+    // so DeepSeek is reachable from onboarding at all.
+    recommended: type === "claude_local" || type === "codex_local" || type === "opencode_local",
     label: type,
     description: "",
     icon: () => null,

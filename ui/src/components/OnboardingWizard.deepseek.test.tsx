@@ -94,19 +94,22 @@ vi.mock("../adapters", () => ({
   listUIAdapters: () => [{ type: "opencode_local" }, { type: "claude_local" }],
 }));
 vi.mock("../adapters/metadata", () => ({ isVisualAdapterChoice: () => true }));
-vi.mock("../adapters/adapter-display-registry", () => ({
-  getAdapterDisplay: (type: string) => ({
-    type,
-    // Both are recommended, so both render as tiles and no adapter snap fires.
-    recommended: true,
-    label: type,
-    description: "",
-    icon: () => null,
-  }),
-  getAdapterLabel: (type: string) => type,
-  getAdapterLabels: () => ({}) as Record<string, string>,
-  isKnownAdapterType: () => true,
-}));
+vi.mock("../adapters/adapter-display-registry", async () => {
+  // Read the real registry rather than asserting `recommended: true` here.
+  // A blanket flag made this suite pass while the shipped row offered no
+  // OpenCode tile at all, so the DeepSeek default was unreachable in the
+  // product and green in the tests. Importing the real map keeps the two
+  // honest about each other.
+  const actual = await vi.importActual<typeof import("../adapters/adapter-display-registry")>(
+    "../adapters/adapter-display-registry",
+  );
+  return {
+    getAdapterDisplay: (type: string) => actual.getAdapterDisplay(type),
+    getAdapterLabel: (type: string) => type,
+    getAdapterLabels: () => ({}) as Record<string, string>,
+    isKnownAdapterType: () => true,
+  };
+});
 vi.mock("../adapters/use-disabled-adapters", () => ({
   useDisabledAdaptersSync: () => new Set<string>(),
   useAdapterRegistryLoaded: () => true,
@@ -172,10 +175,16 @@ async function openStep4() {
   return { root };
 }
 
-/** Press the OpenCode tile, which is what opens the model card. */
+/**
+ * Press the OpenCode tile, which is what opens the model card.
+ *
+ * Matched on the display label, not the adapter type: the row renders what the
+ * registry supplies, so an earlier type-based match passed only while this file
+ * was mocking the registry with a stand-in that echoed the type back.
+ */
 async function pickOpenCode() {
   const tile = [...document.body.querySelectorAll('[role="radio"]')].find((entry) =>
-    /opencode_local/.test(entry.textContent ?? ""),
+    /OpenCode/i.test(entry.textContent ?? ""),
   );
   expect(tile, "the row should offer OpenCode").toBeTruthy();
   await act(async () => {
@@ -242,6 +251,27 @@ describe("OnboardingWizard DeepSeek default", () => {
     expect(trigger, "OpenCode onboarding should ask for a model").toBeTruthy();
     expect(trigger!.textContent).toContain("GPT-5.2 Codex");
     expect(trigger!.textContent).not.toContain("DeepSeek");
+
+    await act(async () => root.unmount());
+  });
+
+  it("offers OpenCode as a tile so DeepSeek is reachable at all", async () => {
+    // The regression this file was blind to: the model seeding was correct but
+    // the source row was built from `recommended`, and OpenCode was not in it,
+    // so a customer could never reach the DeepSeek default from onboarding.
+    mockAgentsApi.adapterModels.mockResolvedValue([
+      { id: DEEPSEEK_OPENROUTER_MODEL, label: "DeepSeek V4 Flash" },
+    ]);
+
+    const { root } = await openStep4();
+
+    const tiles = [...document.body.querySelectorAll('[role="radio"]')].map(
+      (tile) => tile.textContent ?? "",
+    );
+    expect(
+      tiles.some((text) => /OpenCode/i.test(text)),
+      "onboarding must offer OpenCode, or DeepSeek has no path from this step",
+    ).toBe(true);
 
     await act(async () => root.unmount());
   });

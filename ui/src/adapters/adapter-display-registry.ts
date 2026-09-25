@@ -116,6 +116,11 @@ const adapterDisplayMap: Record<string, AdapterDisplayInfo> = {
     label: "OpenCode",
     description: "OpenCode multi-provider harness",
     icon: OpenCodeLogoIcon,
+    // Recommended so the source row offers it: the row is built from this flag,
+    // and DeepSeek is reachable only through OpenCode. Without it the onboarding
+    // DeepSeek default had no way to be selected at all — the model seeding
+    // logic was correct but unreachable.
+    recommended: true,
   },
   pi_local: {
     label: "Pi",
